@@ -1,0 +1,618 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Mezzotint CF arriva da Adobe Fonts (link in index.html) */
+  --font-display: 'mezzotint-cf', 'Times New Roman', serif;
+  --font-sans: 'mezzotint-cf', 'Times New Roman', serif;
+  --ease-velvet: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: #050403;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    background: #050403;
+    overflow-x: hidden;
+  }
+  ::selection {
+    background: #d8b35e;
+    color: #050403;
+  }
+}
+
+/* ── Palcoscenico ─────────────────────────────────────────────
+   Tutto è fisso a schermo; lo scroll sulla .track muove solo la timeline.
+   Lo sfondo è il canvas WebGL; il gradiente qui sotto resta solo come riserva. */
+.stage {
+  --lo: #7a5b1f;
+  --mid: #d8b35e;
+  --hi: #f0cf7a;
+  --ink: #050403;
+  --glow: #1a130a;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  color: var(--mid);
+  background:
+    radial-gradient(120% 80% at 50% -10%, var(--glow) 0%, transparent 60%),
+    var(--ink);
+}
+.scene {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.track {
+  position: relative;
+  pointer-events: none;
+}
+.filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.ball-layer,
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* il lago è schiacciato in prospettiva: il riquadro è più alto dello schermo, così copre tutto anche schiacciato */
+.lake-layer {
+  inset: -50vh 0;
+}
+.dither-bg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Tipografia e dettagli ricorrenti ─────────────────────── */
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1;
+}
+.tone-text {
+  background: linear-gradient(
+    100deg,
+    var(--lo) 0%,
+    var(--mid) 22%,
+    var(--hi) 38%,
+    var(--mid) 52%,
+    var(--lo) 70%,
+    var(--hi) 88%,
+    var(--lo) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 9s ease-in-out infinite alternate;
+}
+.glow {
+  filter: drop-shadow(0 0 28px color-mix(in srgb, var(--mid) 32%, transparent));
+}
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--mid), transparent);
+}
+.caps {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-size: 0.9rem;
+  letter-spacing: 0.32em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 1 · are you ready? ───────────────────────────────────── */
+.ready-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.2rem;
+}
+.ready-title {
+  margin: 0;
+}
+/* "ARE YOU READY?" in pietra 3D su una riga: la camera la adatta al riquadro */
+.ready-stone {
+  width: 100vw !important;
+  height: clamp(150px, 30vw, 400px) !important;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.ready-line {
+  width: min(28rem, 70vw);
+}
+.scroll-cue {
+  position: absolute;
+  bottom: 2.4rem;
+  left: 50%;
+  width: 1px;
+  height: 3.4rem;
+  overflow: hidden;
+  translate: -50% 0;
+}
+.scroll-cue-inner {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--mid) 45%, transparent));
+}
+.scroll-cue-inner::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 35%;
+  background: var(--hi);
+  animation: cue 2.2s var(--ease-velvet) infinite;
+}
+
+/* ── 2 · it's coming ──────────────────────────────────────── */
+/* 56% = superficie dell'acqua disegnata dallo sfondo (fx.surface) */
+.surface {
+  position: absolute;
+  top: 56%;
+  left: 0;
+  right: 0;
+}
+.emerge,
+.reflection {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+.emerge {
+  bottom: 0;
+  padding-top: 0.4em;
+}
+.emerge .title {
+  filter: url(#refract);
+}
+.coming-title {
+  display: block;
+  font-size: clamp(3rem, 11vw, 10rem);
+  padding: 0 0.12em 0.06em;
+  white-space: nowrap;
+}
+.reflection {
+  top: 0;
+  opacity: 0.3;
+  filter: url(#mirror);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+}
+.drops {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: min(60vw, 40rem);
+  translate: -50% 0;
+}
+.drop {
+  position: absolute;
+  bottom: 0;
+  width: 3px;
+  height: 5px;
+  background: var(--hi);
+  opacity: 0;
+}
+
+/* ── 3 · la data ──────────────────────────────────────────── */
+/* ── passaggio: fondo scuro + Noise + coordinate giganti ───── */
+.s-transit {
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(70% 70% at 50% 50%, #120a10 0%, #05070f 100%);
+}
+.transit-coords {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(2rem, 9.2vw, 10rem);
+  line-height: 0.95;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #f6efe4;
+  mix-blend-mode: difference;
+}
+.transit-mask {
+  display: block;
+  overflow: hidden;
+  padding: 0 0.06em 0.04em;
+}
+.transit-line {
+  display: block;
+}
+
+.date-zoom {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  perspective: 1100px;
+  perspective-origin: 50% 20%;
+  will-change: transform;
+}
+/* orb che compongono le scritte */
+.orb-text {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* livello three.js: il pannello 3D della data */
+.scene-3d {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.scene-3d canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* il pannello della data lo disegna three.js: il DOM resta solo come riferimento */
+.date-row.board3d {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-box-reflect: none;
+}
+.date-row.board3d > *,
+.date-row.board3d::before,
+.date-row.board3d::after {
+  opacity: 0 !important;
+}
+
+/* pannello che contiene le tessere: metallo scuro, spessore a strati, riflesso sotto, alone rosso.
+   --lx è la posizione della luce che scorre sul pannello (animata dalla timeline) */
+.date-row {
+  --lx: 50%;
+  position: relative;
+  transform-style: preserve-3d;
+  display: flex;
+  align-items: center;
+  gap: 0.07em;
+  padding: 0.2em 0.26em;
+  font-family: var(--font-display);
+  font-style: normal;
+  font-size: clamp(2.2rem, 8.4vw, 8rem);
+  font-variant-numeric: tabular-nums;
+  border-radius: 0.14em;
+  border: 1px solid rgba(255, 110, 95, 0.14);
+  background: linear-gradient(180deg, #1a0506 0%, #0d0202 55%, #060101 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 170, 150, 0.2),
+    inset 0 0 0 1px rgba(255, 110, 95, 0.05),
+    inset 0 -0.06em 0.12em rgba(0, 0, 0, 0.85),
+    0 0.02em 0 #2c0809,
+    0 0.04em 0 #230607,
+    0 0.06em 0 #1b0405,
+    0 0.08em 0 #140303,
+    0 0.1em 0 #0d0202,
+    0 0.12em 0 #070101,
+    0 0.3em 0.4em -0.05em rgba(0, 0, 0, 0.9),
+    0 0.9em 1.6em rgba(0, 0, 0, 0.65),
+    0 0 1.8em rgba(224, 38, 46, 0.3);
+  -webkit-box-reflect: below 0.16em linear-gradient(transparent 58%, rgba(255, 255, 255, 0.16));
+}
+/* luce che scorre sul pannello + vignetta in basso */
+.date-row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  background:
+    radial-gradient(38% 140% at var(--lx) -20%, rgba(255, 205, 190, 0.2), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 28%, transparent 72%, rgba(0, 0, 0, 0.3));
+  pointer-events: none;
+}
+.date-row::before {
+  content: '';
+  position: absolute;
+  inset: -40% 10% 55%;
+  background: radial-gradient(50% 60% at 50% 100%, rgba(255, 120, 100, 0.16), transparent 70%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+/* cifre retroilluminate: chiare in alto, più profonde in basso, sempre accese */
+.lit {
+  background: linear-gradient(180deg, #ffc4b6 0%, #ff6a5c 38%, #f1262e 62%, #b8121b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.date-slash {
+  padding: 0 0.04em;
+  line-height: 1;
+  filter: drop-shadow(0 0 0.08em rgba(255, 70, 60, 0.6));
+}
+.date-sweep {
+  position: absolute;
+  inset: -10% -5%;
+  z-index: 5;
+  background: linear-gradient(100deg, transparent 35%, rgba(255, 150, 130, 0.45) 50%, transparent 65%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+}
+.date-line {
+  width: min(32rem, 70vw);
+}
+
+/* tessera split-flap: spessore, cerniera con perni, lucido in alto, cifra retroilluminata */
+.flap {
+  position: relative;
+  width: 0.74em;
+  height: 1.12em;
+  perspective: 3.2em;
+  border-radius: 0.07em;
+  transform-style: preserve-3d;
+  box-shadow:
+    0 0.015em 0 #3a0c0d,
+    0 0.03em 0 #220607,
+    0 0.045em 0 #120303,
+    0 0.06em 0 #070101,
+    0 0.09em 0.1em rgba(0, 0, 0, 0.9),
+    0 0.2em 0.28em rgba(0, 0, 0, 0.55),
+    0 0 0.45em rgba(255, 50, 40, 0.2);
+}
+.flap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 0.018em);
+  z-index: 3;
+  height: 0.036em;
+  background: linear-gradient(180deg, #000 0%, #1a0405 100%);
+  box-shadow: 0 1px 0 rgba(255, 120, 100, 0.08);
+}
+.flap::before {
+  content: '';
+  position: absolute;
+  left: -0.035em;
+  right: -0.035em;
+  top: 50%;
+  z-index: 4;
+  height: 0.1em;
+  translate: 0 -50%;
+  background:
+    radial-gradient(circle at 0.05em 50%, #8a6f6a 0 0.018em, #3a2624 0.034em, transparent 0.04em),
+    radial-gradient(circle at calc(100% - 0.05em) 50%, #8a6f6a 0 0.018em, #3a2624 0.034em, transparent 0.04em);
+}
+.flap-half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  backface-visibility: hidden;
+}
+.flap-half > span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 200%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  filter: drop-shadow(0 0 0.05em rgba(255, 80, 66, 0.6)) drop-shadow(0 0 0.18em rgba(255, 40, 40, 0.28));
+}
+.flap-top {
+  top: 0;
+  border-radius: 0.07em 0.07em 0 0;
+  background:
+    radial-gradient(90% 110% at var(--lx) 0%, rgba(255, 150, 130, 0.16), transparent 65%),
+    linear-gradient(180deg, #431214 0%, #2c0a0b 55%, #1d0607 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 185, 165, 0.32),
+    inset 1px 0 0 rgba(255, 140, 120, 0.06),
+    inset -1px 0 0 rgba(0, 0, 0, 0.4),
+    inset 0 -0.05em 0.06em rgba(0, 0, 0, 0.6);
+  transform-origin: 50% 100%;
+}
+.flap-top::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 35% 0;
+  background: linear-gradient(180deg, rgba(255, 225, 215, 0.11), transparent);
+  pointer-events: none;
+}
+.flap-top > span {
+  top: 0;
+}
+.flap-bottom {
+  bottom: 0;
+  border-radius: 0 0 0.07em 0.07em;
+  background:
+    radial-gradient(90% 110% at var(--lx) 100%, rgba(255, 110, 95, 0.08), transparent 65%),
+    linear-gradient(180deg, #120304 0%, #200607 55%, #2c090a 100%);
+  box-shadow:
+    inset 0 0.07em 0.09em rgba(0, 0, 0, 0.8),
+    inset 1px 0 0 rgba(255, 140, 120, 0.04),
+    inset -1px 0 0 rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 120, 100, 0.12);
+  transform-origin: 50% 0;
+}
+.flap-bottom > span {
+  bottom: 0;
+}
+.flap-leaf {
+  z-index: 2;
+}
+/* l'aletta si scurisce mentre ruota lontano dalla luce */
+.flap-top.flap-leaf {
+  animation: flap-top 0.14s cubic-bezier(0.55, 0, 0.9, 0.45) forwards;
+}
+.flap-bottom.flap-leaf {
+  transform: rotateX(90deg);
+  filter: brightness(0.4);
+  animation: flap-bottom 0.2s 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.15) forwards;
+}
+/* mentre l'aletta cade, la metà sotto resta in ombra */
+.flap:has(.flap-leaf) .flap-bottom:not(.flap-leaf)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.1));
+  animation: flap-shade 0.34s ease-out forwards;
+  pointer-events: none;
+}
+
+/* ── 4 · typewriter ───────────────────────────────────────── */
+.s-fable {
+  opacity: 0;
+  visibility: hidden;
+}
+.fable-line {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  left: 1rem;
+  right: 1rem;
+  text-align: center;
+  text-wrap: balance;
+  /* frase finale gigante in Impact */
+  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-style: normal;
+  font-size: clamp(3.2rem, 11.5vw, 13rem);
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+}
+.fable-rest {
+  visibility: hidden;
+}
+.fable-line {
+  /* il testo resta per layout e lettori di schermo: lo disegna il fumo three.js */
+  color: transparent;
+}
+.fable-word {
+  white-space: nowrap;
+}
+.caret {
+  position: relative;
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-right: -2px;
+  vertical-align: -0.08em;
+}
+.caret::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hi);
+  box-shadow: 0 0 10px var(--mid);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes shine {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+@keyframes cue {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(300%);
+  }
+}
+@keyframes flap-top {
+  to {
+    transform: rotateX(-90deg);
+    filter: brightness(0.45);
+  }
+}
+@keyframes flap-bottom {
+  to {
+    transform: rotateX(0deg);
+    filter: brightness(1);
+  }
+}
+@keyframes flap-shade {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tone-text,
+  .scroll-cue-inner::after {
+    animation: none;
+  }
+  /* le tessere cambiano subito, senza aletta che gira */
+  .flap-leaf {
+    animation-duration: 1ms !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* le scritte sono fatte solo di orb (OrbText): il testo vero resta per layout e lettori di schermo */
+.orb-live [data-orb],
+.orb-live [data-orb-follow] {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  background: none !important;
+  text-shadow: none !important;
+  animation: none;
+}
+
+/* su schermi stretti le coordinate vanno su due righe: il separatore non serve */
+@media (max-width: 520px) {
+  }
+
+/* su mobile la frase finale va su più righe e resta gigante */
+@media (max-width: 640px) {
+  /* "ARE YOU / READY?" su due righe: il riquadro della pietra si alza */
+  .ready-stone {
+    height: clamp(220px, 72vw, 460px) !important;
+  }
+  .fable-line {
+    font-size: 17vw;
+  }
+}
