@@ -254,35 +254,77 @@
   caret-color: #f0cf7a;
 }
 
-/* stanza finale con i pezzi in cromo (ChromoRoom), dopo il nome */
+/* stanza finale dei pezzi in cromo (ChromoRoom), dopo il nome: si scorre dentro e la stanza gira; il sito sotto resta fermo */
 .chromo-room {
   position: fixed;
   inset: 0;
   z-index: 70;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #000;
+  scrollbar-width: none;
+  animation: hint-in 1.4s var(--ease-velvet) both;
+}
+.chromo-room::-webkit-scrollbar {
+  display: none;
 }
 .chromo-room-view {
-  position: absolute;
-  inset: 0;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+}
+/* quanto si scorre per un giro intero */
+.chromo-room-track {
+  height: 400svh;
 }
 .chromo-room-hint {
-  position: absolute;
+  position: fixed;
   left: 0;
   right: 0;
-  bottom: clamp(1.2rem, 6vh, 3rem);
+  bottom: max(1.4rem, env(safe-area-inset-bottom));
   margin: 0;
   text-align: center;
   font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: clamp(0.75rem, 1.5vw, 0.95rem);
+  font-size: 0.8rem;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: #e3b54a;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 1.2s ease;
+  transition: opacity 1s ease;
 }
 .chromo-room-hint.is-on {
   opacity: 0.8;
+}
+
+/* pulsante per tornare alla storia dalla pagina nera in fondo: grande e in alto, facile da toccare col pollice */
+.back-to-story {
+  position: fixed;
+  top: max(0.9rem, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 80;
+  translate: -50% 0;
+  min-height: 44px;
+  padding: 0.7rem 1.3rem;
+  border: 1px solid rgba(227, 181, 74, 0.55);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #e3b54a;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: hint-in 1.2s var(--ease-velvet) 0.6s both;
+}
+.back-to-story:active {
+  background: rgba(227, 181, 74, 0.18);
+}
+.back-to-story:focus-visible {
+  outline: 2px solid #e3b54a;
+  outline-offset: 3px;
 }
 
 /* nel sito la freccia dorata prende il posto della lineetta sottile, che le passerebbe sopra */
@@ -681,22 +723,7 @@ html:not(.is-cinematic) .scroll-cue {
 .fable-word {
   white-space: nowrap;
 }
-.caret {
-  position: relative;
-  display: inline-block;
-  width: 2px;
-  height: 0.9em;
-  margin-right: -2px;
-  vertical-align: -0.08em;
-}
-.caret::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--hi);
-  box-shadow: 0 0 10px var(--mid);
-  animation: blink 1s steps(1) infinite;
-}
+
 
 @keyframes shine {
   from {
@@ -731,12 +758,6 @@ html:not(.is-cinematic) .scroll-cue {
     opacity: 0;
   }
 }
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tone-text,
   .scroll-cue-inner::after {

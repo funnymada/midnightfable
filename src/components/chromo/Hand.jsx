@@ -1,7 +1,7 @@
 // ChromeHand3D.jsx — mano 3D in cromo iridescente (three.js, nessuna dipendenza oltre a "three")
 // Uso: <div style={{height: 700}}><ChromeHand3D /></div>
 // Props: interactive (trascina per ruotarla a 360°, gira da sola) · background (default trasparente)
-// buildHand({ cell }) costruisce solo la mano (senza renderer): la usa anche la stanza finale (ChromoRoom).
+// buildHand({ cell }) costruisce solo la mano (senza renderer), per usarlo in una scena three.js condivisa.
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { chromeEnvironment, chromeMaterial, chromeRenderer, disposeTree } from './chrome.js';

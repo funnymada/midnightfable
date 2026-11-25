@@ -1,7 +1,7 @@
 // ChessPawn3D.jsx — pedone di scacchi 3D in cromo iridescente (three.js, nessuna dipendenza oltre a "three")
 // Uso: <div style={{height: 700}}><ChessPawn3D /></div>
 // Props: interactive (trascina per ruotarlo a 360°, gira da solo) · background (default trasparente)
-// buildPawn() costruisce solo il pezzo (senza renderer): lo usa anche la stanza finale (ChromoRoom).
+// buildPawn() costruisce solo il pezzo (senza renderer), per usarlo in una scena three.js condivisa.
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { chromeEnvironment, chromeMaterial, chromeRenderer, disposeTree } from './chrome.js';

@@ -58,6 +58,52 @@ export function buildTimeline(stage) {
   tl.to(q('.ready-inner'), { scale: 0.94, duration: 4.6 }, 0);
   tl.to(fx, { flow: 0.35, duration: 4.6 }, 0);
   ['amethyst', 'emerald', 'ice', 'gold', 'deep'].forEach((name, i) => paint(name, 0.5 + i * 0.85, 0.35));
+
+  // pausa su "are you ready?": appena ci si arriva lo sfondo cambia colore velocissimo e poi rallenta da solo,
+  // a tempo (non con lo scroll, che lo renderebbe veloce o lento a seconda di come si scorre), e si ferma sul blu
+  // di prima (deep). Se si torna indietro prima della pausa si ferma e rimette il blu; se si va oltre, finisce da solo
+  // o lo interrompe la palette successiva. Con "riduci movimento" attivo niente lampi.
+  if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    const first = HOLDS[0];
+    const start = remap(first.at) - first.hold; // inizio vero della pausa
+    const stop = pos(6.4); // qui la timeline dipinge la palette successiva
+    const cycle = ['red', 'emerald', 'amethyst', 'ice', 'gold', 'tide', 'night'];
+    const STEPS = 16;
+    const setPalette = p => {
+      gsap.set(stage, cssVars(p));
+      Object.assign(fx, toneKeys(p));
+      emit();
+    };
+    let started = false;
+    let call = null;
+    const halt = () => {
+      call?.kill();
+      call = null;
+    };
+    const run = () => {
+      let k = 0;
+      let gap = 0.035; // primo intervallo (secondi): ogni scatto dura il 22% in più del precedente, ~2.3 s in tutto
+      const step = () => {
+        setPalette(PALETTES[k === STEPS ? 'deep' : cycle[k % cycle.length]]);
+        if (k++ === STEPS) return (call = null);
+        call = gsap.delayedCall(gap, step);
+        gap *= 1.22;
+      };
+      step();
+    };
+    raw.eventCallback('onUpdate', () => {
+      emit();
+      const t = raw.time();
+      if (t >= start && t < stop && !started) {
+        started = true;
+        run();
+      } else if (t < start && started) {
+        started = false;
+        halt();
+        setPalette(PALETTES.deep);
+      } else if (t >= stop && call) halt();
+    });
+  }
   tl.to(fx, { embers: 0.45, duration: 0.6 }, 4.2);
 
   // onda dall'alto: il fronte di plasma scende e copre tutto, poi la camera risale alla superficie
@@ -162,7 +208,6 @@ export function buildTimeline(stage) {
   // this time it will be a fable
   tl.to(q('.s-fable'), { autoAlpha: 1, duration: 0.3 }, 29);
   tl.to(fx, { type: 1, duration: 4.8 }, 29.2);
-  tl.to(q('.caret'), { autoAlpha: 0, duration: 0.4 }, 35.2);
 
   // ultima cosa: la TV si spegne. Tutto si schiaccia in una riga luminosa (dall'alto e dal basso verso il centro),
   // la riga si stringe dai lati fino a un punto, il punto si spegne e resta il nero

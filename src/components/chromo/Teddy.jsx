@@ -1,7 +1,7 @@
 // TeddyBear3D.jsx — orsacchiotto 3D in cromo iridescente (three.js, nessuna dipendenza oltre a "three")
 // Uso: <div style={{height: 700}}><TeddyBear3D /></div>
 // Props: interactive (trascina per ruotarlo a 360°, clic = rimbalzo) · background (default trasparente)
-// buildBear() costruisce solo l'orsacchiotto (senza renderer): lo usa anche la stanza finale (ChromoRoom).
+// buildBear() costruisce solo l'orsacchiotto (senza renderer), per usarlo in una scena three.js condivisa.
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { chromeEnvironment, chromeMaterial, chromeRenderer, disposeTree } from './chrome.js';

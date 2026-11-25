@@ -4,7 +4,7 @@ import { LINES } from '../content.js';
 
 const TEXT = LINES.fable;
 
-// Pesi leggermente irregolari per lettera: il ritmo sembra battuto a mano
+// Pesi leggermente irregolari per lettera: il ritmo sembra quello di una mano che scrive
 const CUMULATIVE = [...TEXT].reduce((acc, c, i) => {
   const weight = c === ' ' ? 1.8 : 1 + ((i * 37) % 7) / 12;
   acc.push((acc[i - 1] ?? 0) + weight);
@@ -26,18 +26,15 @@ const WORDS = TEXT.split(' ').reduce((acc, word) => {
   return acc;
 }, []);
 
-// Scena 4 — campo stellare e frase battuta a macchina, una lettera per volta: la disegna il fumo di Scene3D.
-// Le lettere non ancora battute restano invisibili ma occupano spazio: il testo non si sposta mentre si scrive.
+// Scena 4 — campo stellare e frase scritta a mano, una lettera per volta e senza cursore: la disegna il fumo di Scene3D,
+// che traccia ogni lettera da sinistra a destra come una penna (smokeText.js).
+// Le lettere non ancora scritte restano invisibili ma occupano spazio: il testo non si sposta mentre si scrive.
 export default function Fable() {
   const count = useFx(f => lettersAt(f.type));
-  let caretAt = count - 1;
-  while (caretAt >= 0 && TEXT[caretAt] === ' ') caretAt--;
-  const caret = <span className="caret" aria-hidden="true" />;
 
   return (
     <section className="scene s-fable">
       <p className="title glow fable-line" aria-label={TEXT}>
-        {caretAt < 0 && caret}
         {WORDS.map(({ word, start }, w) => (
           <Fragment key={w}>
             {w > 0 && ' '}
@@ -47,7 +44,6 @@ export default function Fable() {
                   <span className={start + i < count ? undefined : 'fable-rest'} data-smoke-i={start + i}>
                     {c}
                   </span>
-                  {start + i === caretAt && caret}
                 </Fragment>
               ))}
             </span>

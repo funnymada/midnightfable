@@ -1,13 +1,13 @@
 // Compass3D.jsx — bussola 3D in cromo iridescente (three.js, nessuna dipendenza oltre a "three")
 // Uso: <div style={{height: 600}}><Compass3D /></div>
 // Props: interactive (trascina per ruotarla a 360°, gira da sola) · background (es. "#000", default trasparente)
-// buildCompass() costruisce solo la bussola (senza renderer): la usa anche la stanza finale (ChromoRoom).
+// buildCompass() costruisce solo la bussola (senza renderer), per usarlo in una scena three.js condivisa.
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
-// three non include più i font di esempio: serif bold del progetto ridotto ai soli caratteri della bussola (N E S W e cifre)
-import fontJson from './compass-font.typeface.json';
+// Helvetiker bold (dal repository di three.js, che non lo include più nel pacchetto), ridotto a maiuscole e cifre
+import fontJson from './helvetiker-bold.typeface.json';
 import { chromeEnvironment, chromeMaterial, chromeRenderer, disposeTree } from './chrome.js';
 
 /* ---------- la bussola (diametro circa 5.5, quadrante verso +z): solo il modello, senza renderer ----------

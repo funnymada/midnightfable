@@ -184,11 +184,12 @@ export class SmokeText {
     this.scene.add(this.mesh);
   }
 
-  // quanto è formata ogni lettera: r = lettera, g = nube che la precede
+  // quanto è formata ogni lettera: r = quanta parte è già tracciata (da sinistra), g = nube che la precede.
+  // Una lettera per volta: la i-esima si scrive mentre `typed` va da i a i + 1.
   states(typed) {
     return this.chars.map(el => {
       const i = Number(el.dataset.smokeI);
-      const rev = Math.min(1, Math.max(0, (typed + 1.2 - i) / 2.2));
+      const rev = Math.min(1, Math.max(0, typed - i));
       const gather = Math.min(1, Math.max(0, (typed + 3 - i) / 3)) * (1 - rev);
       return [Math.round(rev * 255), Math.round(gather * 255)];
     });
@@ -222,13 +223,32 @@ export class SmokeText {
     ctx.font = font;
     ctx.textBaseline = 'alphabetic';
     const ascent = ctx.measureText('Hg').fontBoundingBoxAscent ?? parseFloat(cs.fontSize) * 0.8;
+    // canali sommati: G = nube su tutta la lettera, R = tratto già scritto, che avanza da sinistra come una penna
+    ctx.globalCompositeOperation = 'lighter';
     chars.forEach((el, n) => {
       const [rev, gather] = states[n];
       if (!rev && !gather) return;
       const r = el.getBoundingClientRect();
-      ctx.fillStyle = `rgb(${rev}, ${gather}, 0)`;
-      ctx.fillText(el.textContent, r.left, r.top + ascent);
+      const y = r.top + ascent;
+      if (gather) {
+        ctx.fillStyle = `rgb(0, ${gather}, 0)`;
+        ctx.fillText(el.textContent, r.left, y);
+      }
+      if (rev) {
+        if (rev >= 255) ctx.fillStyle = 'rgb(255, 0, 0)';
+        else {
+          // punta della penna morbida: pieno fino a poco prima del fronte, poi sfuma
+          const p = rev / 255;
+          const edge = Math.min(1, p * 1.12);
+          const g = ctx.createLinearGradient(r.left, 0, r.right, 0);
+          g.addColorStop(Math.max(0, edge - 0.12), 'rgb(255, 0, 0)');
+          g.addColorStop(edge, 'rgb(0, 0, 0)');
+          ctx.fillStyle = g;
+        }
+        ctx.fillText(el.textContent, r.left, y);
+      }
     });
+    ctx.globalCompositeOperation = 'source-over';
 
     if (!this.texture || resized) {
       this.texture?.dispose();

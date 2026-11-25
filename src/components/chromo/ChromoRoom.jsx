@@ -1,7 +1,13 @@
-// Stanza finale (dopo che l'utente ha scritto il nome): nel buio compare un punto di luce, poi i quattro pezzi
-// in cromo (orsacchiotto, mano, bussola, pedone) cadono intorno a chi guarda. Si può solo girare lo sguardo
-// (trascinando o con le frecce), non toccare i pezzi.
-// Un solo renderer e un solo ambiente per tutti e quattro; il modulo si carica solo qui (lazy), non pesa sul sito.
+// Stanza finale (dopo che l'utente ha scritto il nome): i pezzi in cromo sparsi intorno a chi guarda, a distanze e
+// altezze diverse, come oggetti in una stanza. Scorrendo, la stanza gira piano intorno (un giro intero dall'inizio
+// alla fine dello scroll). Niente trascinamento: si scorre e basta.
+//
+// Contro il lag:
+// - un solo renderer, un solo ambiente e una sola scena per tutti i pezzi (non cinque canvas);
+// - materiali più leggeri solo qui: niente secondo strato lucido (clearcoat), il vetro della bussola senza rifrazione;
+// - i pezzi si costruiscono uno per volta tra un fotogramma e l'altro, entrano con una dissolvenza;
+// - risoluzione adattiva: se i fotogrammi rallentano scende, se tornano fluidi risale;
+// - si disegna solo quando la stanza si muove davvero o un pezzo è vicino allo sguardo.
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { chromeEnvironment, chromeRenderer, disposeTree } from './chrome.js';
@@ -9,216 +15,208 @@ import { buildBear } from './Teddy.jsx';
 import { buildHand } from './Hand.jsx';
 import { buildCompass } from './Compass.jsx';
 import { buildPawn } from './Pawn.jsx';
+import { buildFrame } from './PrivetDrive.jsx';
 
-const DIST = 5.2; // distanza dei pezzi da chi guarda
-const SIZE = 1.6; // raggio d'ingombro di ogni pezzo
-const LIGHT_AT = 0.4; // secondi: compare il punto di luce
-const FALL_AT = 1.9; // secondi: cade il primo pezzo
-const FALL_GAP = 0.6; // secondi tra un pezzo e l'altro
-const PITCH = 0.55; // quanto si può guardare in su / in giù (radianti)
+// posizione di ogni pezzo: angolo intorno a chi guarda (gradi, 0 = davanti), distanza, altezza, raggio d'ingombro,
+// inclinazione propria. Sparsi apposta: angoli, distanze e altezze irregolari.
+const LAYOUT = [
+  { build: () => buildFrame({ cell: 0.045, textCell: 0.03, textRes: 0.016 }), deg: 2, dist: 7.4, y: 1.5, size: 2.2, tilt: -0.06 },
+  { build: () => buildBear(), deg: -38, dist: 4.6, y: -0.9, size: 1.35, tilt: 0.08, kind: 'bear' },
+  { build: () => buildHand({ cell: 0.045 }), deg: -105, dist: 5.4, y: 0.6, size: 1.45, tilt: -0.25 },
+  { build: () => buildCompass(), deg: -170, dist: 6.2, y: -0.2, size: 1.6, tilt: 0.35, kind: 'compass' },
+  { build: () => buildPawn(), deg: 128, dist: 4.4, y: -1.1, size: 1.1, tilt: 0.12 }
+];
 
-function createRoom(container, { onLanded, onLook }) {
+const MAX_DPR = () => Math.min(window.devicePixelRatio || 1, window.innerWidth < 700 ? 1.25 : 1.5);
+const MIN_DPR = 0.6;
+
+function createRoom(view, scroller, { onBuilt }) {
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const W = () => container.clientWidth || window.innerWidth;
-  const H = () => container.clientHeight || window.innerHeight;
+  const W = () => view.clientWidth || window.innerWidth;
+  const H = () => view.clientHeight || window.innerHeight;
 
-  const renderer = chromeRenderer({ alpha: false, maxDpr: 1.75 });
+  let dpr = MAX_DPR();
+  const renderer = chromeRenderer({ alpha: false, maxDpr: dpr });
   renderer.setClearColor(0x000000, 1);
   const cv = renderer.domElement;
-  Object.assign(cv.style, { display: 'block', width: '100%', height: '100%', touchAction: 'none', cursor: 'grab' });
-  container.appendChild(cv);
+  Object.assign(cv.style, { display: 'block', width: '100%', height: '100%' });
+  view.appendChild(cv);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 60);
   const fit = () => {
     const a = W() / H();
     camera.aspect = a;
-    camera.fov = a < 1 ? 72 : 60; // in verticale un po' più largo, così i pezzi ci stanno
+    camera.fov = a < 1 ? 74 : 62; // in verticale più largo, così si vede più stanza
     camera.updateProjectionMatrix();
     renderer.setSize(W(), H());
+    dirty = true;
   };
-  fit();
 
-  // l'ambiente colora il cromo: parte spento e si accende insieme al punto di luce
   const envRT = chromeEnvironment(renderer);
   scene.environment = envRT.texture;
-  scene.environmentIntensity = 0;
 
-  // punto di luce, davanti e un po' in alto
-  const glowCanvas = document.createElement('canvas');
-  glowCanvas.width = glowCanvas.height = 128;
-  {
-    const g = glowCanvas.getContext('2d');
-    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    r.addColorStop(0, 'rgba(255,255,255,1)');
-    r.addColorStop(0.12, 'rgba(255,240,220,0.9)');
-    r.addColorStop(0.35, 'rgba(255,170,230,0.25)');
-    r.addColorStop(1, 'rgba(120,60,255,0)');
+  // la stanza: pavimento con una pozza di luce viola al centro e una parete cilindrica appena visibile
+  const tex = (w, h, paint) => {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    paint(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  const floorTex = tex(256, 256, (g, w) => {
+    const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    r.addColorStop(0, 'rgba(70,30,140,0.55)');
+    r.addColorStop(0.45, 'rgba(40,12,80,0.28)');
+    r.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = r;
-    g.fillRect(0, 0, 128, 128);
-  }
-  const glowTex = new THREE.CanvasTexture(glowCanvas);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-  glow.position.set(0, 1.9, -8);
-  glow.scale.setScalar(0);
-  const light = new THREE.PointLight(0xfff0e0, 0, 40, 1.4);
-  light.position.copy(glow.position);
-  scene.add(glow, light);
+    g.fillRect(0, 0, w, w);
+  });
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshBasicMaterial({ map: floorTex, transparent: true, depthWrite: false }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -2.4;
+  const wallTex = tex(1024, 128, (g, w, h) => {
+    const v = g.createLinearGradient(0, 0, 0, h);
+    v.addColorStop(0, 'rgba(0,0,0,1)');
+    v.addColorStop(0.75, 'rgba(26,10,48,1)');
+    v.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = v;
+    g.fillRect(0, 0, w, h);
+    // strisce di luce verticali, irregolari
+    for (let i = 0; i < 9; i++) {
+      const x = ((i * 137) % 1000) + 12;
+      const s = g.createLinearGradient(x - 14, 0, x + 14, 0);
+      s.addColorStop(0, 'rgba(255,120,220,0)');
+      s.addColorStop(0.5, `rgba(255,${120 + ((i * 41) % 90)},220,${0.05 + (i % 3) * 0.03})`);
+      s.addColorStop(1, 'rgba(255,120,220,0)');
+      g.fillStyle = s;
+      g.fillRect(x - 14, 0, 28, h);
+    }
+  });
+  wallTex.wrapS = THREE.RepeatWrapping;
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 9, 64, 1, true), new THREE.MeshBasicMaterial({ map: wallTex, side: THREE.BackSide, depthWrite: false }));
+  wall.position.y = 1.5;
+  scene.add(floor, wall);
 
-  // i pezzi, uno per lato: davanti l'orsacchiotto, poi mano (destra), bussola (dietro), pedone (sinistra)
-  const specs = [
-    // tick: animazione propria del pezzo (orsacchiotto che dondola, ago della bussola che si assesta)
-    { build: () => buildBear(), angle: 0, tick: (b, t) => !reduce && b.update(t) },
-    { build: () => buildHand({ cell: 0.04 }), angle: Math.PI / 2 },
-    { build: () => buildCompass(), angle: Math.PI, tick: (b, t, dt, p) => b.update(dt, p.landed ? 0 : 2.5, reduce) },
-    { build: () => buildPawn(), angle: -Math.PI / 2 }
-  ];
+  // materiali più leggeri per la stanza
+  const lighten = obj =>
+    obj.traverse(o => {
+      for (const m of [].concat(o.material || [])) {
+        if (!m.isMeshPhysicalMaterial) continue;
+        m.clearcoat = 0;
+        if (m.transmission > 0) {
+          m.transmission = 0;
+          m.transparent = true;
+          m.opacity = 0.12;
+          m.depthWrite = false;
+        }
+      }
+    });
+
+  // pezzi: costruiti uno per volta, senza bloccare il resto
+  const pieces = [];
   const box = new THREE.Box3();
   const sphere = new THREE.Sphere();
-  const pieces = specs.map((s, i) => {
-    const built = s.build();
-    const obj = built.object;
-    box.setFromObject(obj).getBoundingSphere(sphere);
-    obj.position.sub(sphere.center); // centrato
-    const spin = new THREE.Group(); // capriole mentre cade
-    spin.add(obj);
-    spin.scale.setScalar(SIZE / sphere.radius);
-    const holder = new THREE.Group(); // posizione intorno a chi guarda, rivolto verso di lui
+  let next = 0;
+  let buildTimer = 0;
+  const buildNext = () => {
+    if (next >= LAYOUT.length) return onBuilt?.();
+    const spec = LAYOUT[next++];
+    const built = spec.build();
+    lighten(built.object);
+    box.setFromObject(built.object).getBoundingSphere(sphere);
+    built.object.position.sub(sphere.center);
+    const spin = new THREE.Group(); // oscillazione propria
+    spin.add(built.object);
+    const k = spec.size / sphere.radius;
+    const holder = new THREE.Group(); // posto nella stanza, rivolto verso chi guarda
     holder.add(spin);
-    const rest = -0.25 + (i % 2) * 0.18;
-    holder.position.set(Math.sin(s.angle) * DIST, rest, -Math.cos(s.angle) * DIST);
-    holder.lookAt(0, rest, 0);
-    holder.visible = false;
+    const a = THREE.MathUtils.degToRad(spec.deg);
+    holder.position.set(Math.sin(a) * spec.dist, spec.y, -Math.cos(a) * spec.dist);
+    holder.lookAt(0, spec.y * 0.4, 0);
+    holder.rotateZ(spec.tilt);
+    holder.scale.setScalar(0.001);
     scene.add(holder);
-    const tumble = { x: (Math.random() - 0.5) * 1.2, z: (Math.random() - 0.5) * 1.2, vx: 1.2 + Math.random(), vz: (Math.random() - 0.5) * 1.4 };
-    return { built, tick: s.tick, holder, spin, rest, y: 9 + Math.random() * 2, vy: 0, at: FALL_AT + i * FALL_GAP, landed: false, tumble, phase: i * 1.7 };
-  });
+    pieces.push({ ...spec, built, spin, holder, k, born: clock.elapsedTime, phase: pieces.length * 1.9 });
+    dirty = true;
+    buildTimer = setTimeout(buildNext, 60); // lascia respirare qualche fotogramma tra un pezzo e l'altro
+  };
 
-  // sguardo: solo rotazione (trascinando, o con le frecce); continua un po' per inerzia
-  const look = { yaw: 0, pitch: 0, vy: 0, vp: 0 };
-  let drag = null;
-  const onDown = e => {
-    cv.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, y: e.clientY, t: performance.now() };
-    look.vy = look.vp = 0;
-    cv.style.cursor = 'grabbing';
-    onLook?.();
+  // scroll → giro della stanza (morbido)
+  let target = 0;
+  let yaw = 0;
+  let dirty = true;
+  const onScroll = () => {
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    target = max > 0 ? (scroller.scrollTop / max) * Math.PI * 2 : 0;
   };
-  const onMove = e => {
-    if (!drag) return;
-    const now = performance.now();
-    const dt = Math.max((now - drag.t) / 1000, 1e-3);
-    const k = 2.4 / Math.max(W(), H()); // stessa sensibilità su schermi diversi
-    const dx = (e.clientX - drag.x) * k;
-    const dy = (e.clientY - drag.y) * k;
-    look.yaw += dx;
-    look.pitch = THREE.MathUtils.clamp(look.pitch + dy, -PITCH, PITCH);
-    look.vy = THREE.MathUtils.lerp(look.vy, dx / dt, 0.5);
-    look.vp = THREE.MathUtils.lerp(look.vp, dy / dt, 0.5);
-    Object.assign(drag, { x: e.clientX, y: e.clientY, t: now });
+  scroller.addEventListener('scroll', onScroll, { passive: true });
+
+  // risoluzione adattiva
+  let acc = 0;
+  let frames = 0;
+  const adapt = dt => {
+    acc += dt;
+    if (++frames < 40) return;
+    const avg = acc / frames;
+    acc = frames = 0;
+    let want = dpr;
+    if (avg > 1 / 40) want = Math.max(MIN_DPR, dpr - 0.2);
+    else if (avg < 1 / 58) want = Math.min(MAX_DPR(), dpr + 0.1);
+    if (Math.abs(want - dpr) > 0.01) {
+      dpr = want;
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(W(), H());
+    }
   };
-  const onUp = e => {
-    if (!drag) return;
-    if (performance.now() - drag.t > 80) look.vy = look.vp = 0;
-    drag = null;
-    cv.style.cursor = 'grab';
-    cv.releasePointerCapture?.(e.pointerId);
-  };
-  const keys = new Set();
-  const onKey = e => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-    e.preventDefault();
-    e.type === 'keydown' ? keys.add(e.key) : keys.delete(e.key);
-    onLook?.();
-  };
-  cv.addEventListener('pointerdown', onDown);
-  cv.addEventListener('pointermove', onMove);
-  cv.addEventListener('pointerup', onUp);
-  cv.addEventListener('pointercancel', onUp);
-  window.addEventListener('keydown', onKey);
-  window.addEventListener('keyup', onKey);
 
   const clock = new THREE.Clock();
-  const smooth = x => x * x * (3 - 2 * x);
-  let allLanded = false;
+  const view3 = new THREE.Vector3();
   renderer.setAnimationLoop(() => {
-    const dt = THREE.MathUtils.clamp(clock.getDelta(), 1e-3, 1 / 30);
+    const dt = Math.min(clock.getDelta(), 0.1);
     const t = clock.elapsedTime;
+    const turning = Math.abs(target - yaw) > 0.0005;
+    yaw += (target - yaw) * (1 - Math.exp(-dt / (reduce ? 0.05 : 0.35)));
+    camera.rotation.set(reduce ? 0 : Math.sin(t * 0.3) * 0.02, yaw, 0, 'YXZ');
+    camera.updateMatrixWorld();
+    camera.getWorldDirection(view3);
 
-    // punto di luce: si accende con un lampo e si assesta; l'ambiente si accende con lui
-    const l = THREE.MathUtils.clamp((t - LIGHT_AT) / 1.2, 0, 1);
-    const flash = Math.sin(Math.min(1, l) * Math.PI) * 0.6;
-    glow.scale.setScalar((smooth(l) * 1.4 + flash) * (1 + (reduce ? 0 : Math.sin(t * 2.3) * 0.04)));
-    light.intensity = smooth(l) * 45;
-    scene.environmentIntensity = smooth(THREE.MathUtils.clamp((t - LIGHT_AT - 0.5) / 1.6, 0, 1));
-    scene.environmentRotation.y = reduce ? 0 : t * 0.08;
-
-    // caduta con un paio di rimbalzi, poi galleggiano piano
+    let animating = false;
     for (const p of pieces) {
-      if (t < p.at) continue;
-      p.holder.visible = true;
-      if (!p.landed) {
-        p.vy -= 22 * dt;
-        p.y += p.vy * dt;
-        // capriole mentre cade
-        p.tumble.x += p.tumble.vx * dt;
-        p.tumble.z += p.tumble.vz * dt;
-        if (p.y <= p.rest) {
-          p.y = p.rest;
-          p.vy = -p.vy * 0.34;
-          if (p.vy < 0.7) {
-            p.landed = true;
-            // da qui si raddrizza per la via più corta
-            p.tumble.x = Math.atan2(Math.sin(p.tumble.x), Math.cos(p.tumble.x));
-            p.tumble.z = Math.atan2(Math.sin(p.tumble.z), Math.cos(p.tumble.z));
-          }
-        }
-      } else {
-        p.y = THREE.MathUtils.lerp(p.y, p.rest + (reduce ? 0 : Math.sin(t * 0.9 + p.phase) * 0.08), Math.min(1, dt * 3));
-      }
-      p.holder.position.y = p.y;
-      // le capriole si smorzano dopo l'atterraggio; poi oscillano appena, così il cromo luccica
-      if (p.landed) {
-        const damp = Math.pow(0.08, dt);
-        p.tumble.x *= damp;
-        p.tumble.z *= damp;
-      }
-      const sway = reduce ? 0 : Math.sin(t * 0.45 + p.phase) * 0.3;
-      p.spin.rotation.set(p.tumble.x, sway, p.tumble.z);
-      p.tick?.(p.built, t, dt, p);
+      const grow = Math.min(1, (t - p.born) / 0.9);
+      p.holder.scale.setScalar(p.k * (1 - (1 - grow) ** 3));
+      if (grow < 1) animating = true;
+      // i pezzi lontani dallo sguardo non si animano (tanto non si vedono): meno lavoro
+      const toPiece = p.holder.position.clone().normalize();
+      if (toPiece.dot(view3) < 0.2) continue;
+      animating = true;
+      if (reduce) continue;
+      p.spin.rotation.y = Math.sin(t * 0.4 + p.phase) * 0.35;
+      p.spin.position.y = Math.sin(t * 0.7 + p.phase) * 0.06;
+      if (p.kind === 'bear') p.built.update(t);
+      if (p.kind === 'compass') p.built.update(dt, 0, reduce);
     }
-    if (!allLanded && pieces.every(p => p.landed)) {
-      allLanded = true;
-      onLanded?.();
-    }
+    if (!reduce) scene.environmentRotation.y = t * 0.05;
 
-    // sguardo
-    if (keys.has('ArrowLeft')) look.yaw += 1.4 * dt;
-    if (keys.has('ArrowRight')) look.yaw -= 1.4 * dt;
-    if (keys.has('ArrowUp')) look.pitch = Math.min(PITCH, look.pitch + 0.9 * dt);
-    if (keys.has('ArrowDown')) look.pitch = Math.max(-PITCH, look.pitch - 0.9 * dt);
-    if (!drag) {
-      look.yaw += look.vy * dt;
-      look.pitch = THREE.MathUtils.clamp(look.pitch + look.vp * dt, -PITCH, PITCH);
-      look.vy *= Math.pow(0.06, dt);
-      look.vp *= Math.pow(0.06, dt);
+    if (turning || animating || dirty) {
+      renderer.render(scene, camera);
+      dirty = false;
+      adapt(dt);
     }
-    camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
-    renderer.render(scene, camera);
   });
 
+  fit();
   const ro = new ResizeObserver(fit);
-  ro.observe(container);
+  ro.observe(view);
+  buildTimer = setTimeout(buildNext, 30);
 
   return () => {
+    clearTimeout(buildTimer);
     renderer.setAnimationLoop(null);
     ro.disconnect();
-    cv.removeEventListener('pointerdown', onDown);
-    cv.removeEventListener('pointermove', onMove);
-    cv.removeEventListener('pointerup', onUp);
-    cv.removeEventListener('pointercancel', onUp);
-    window.removeEventListener('keydown', onKey);
-    window.removeEventListener('keyup', onKey);
+    scroller.removeEventListener('scroll', onScroll);
     disposeTree(scene);
     envRT.dispose();
     renderer.dispose();
@@ -227,16 +225,18 @@ function createRoom(container, { onLanded, onLook }) {
 }
 
 export default function ChromoRoom() {
-  const ref = useRef(null);
-  const [landed, setLanded] = useState(false);
-  const [looked, setLooked] = useState(false);
-  useEffect(() => createRoom(ref.current, { onLanded: () => setLanded(true), onLook: () => setLooked(true) }), []);
+  const scroller = useRef(null);
+  const view = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => createRoom(view.current, scroller.current, { onBuilt: () => setReady(true) }), []);
   return (
-    <div className="chromo-room">
-      <div ref={ref} className="chromo-room-view" />
-      {/* suggerimento: compare quando tutti i pezzi sono a terra (tre su quattro sono fuori vista) */}
-      <p className={`chromo-room-hint${landed && !looked ? ' is-on' : ''}`} aria-hidden="true">
-        ← drag to look around →
+    <div ref={scroller} className="chromo-room" onScroll={() => !scrolled && setScrolled(true)}>
+      <div ref={view} className="chromo-room-view" aria-hidden="true" />
+      {/* altezza da scorrere: un giro intero della stanza */}
+      <div className="chromo-room-track" />
+      <p className={`chromo-room-hint${ready && !scrolled ? ' is-on' : ''}`} aria-hidden="true">
+        scroll to look around
       </p>
     </div>
   );
