@@ -170,6 +170,163 @@
   animation: cue 2.2s var(--ease-velvet) infinite;
 }
 
+/* freccia dorata "scroll" in cima alla pagina, solo nel sito dopo la cinematica (ScrollHint) */
+.scroll-hint {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(1.2rem, 5vh, 3rem);
+  z-index: 60;
+  translate: -50% 0;
+  color: #e3b54a;
+  pointer-events: none;
+  animation: hint-in 1.2s var(--ease-velvet) 0.8s both; /* aspetta che la sequenza finisca di tornare indietro */
+  transition: opacity 0.5s ease;
+}
+.scroll-hint.is-away {
+  opacity: 0;
+}
+/* TV che si spegne in fondo (timeline): bagliore dentro la scena schiacciata e punto luminoso finale */
+.tv-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.tv-dot {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 55;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 14px 6px rgba(255, 255, 255, 0.8), 0 0 46px 18px rgba(200, 220, 255, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* campo per il nome a TV spenta (NameEntry), solo nel sito */
+.name-entry {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.6rem;
+  padding: 0 1rem;
+  background: #000;
+  animation: hint-in 1.4s var(--ease-velvet) 0.3s both;
+}
+.name-entry-label {
+  font-family: var(--font-display);
+  font-size: clamp(0.8rem, 1.8vw, 1.05rem);
+  letter-spacing: 0.32em;
+  line-height: 2;
+  text-align: center;
+  text-transform: uppercase;
+  color: #d8b35e;
+}
+.name-entry-input {
+  width: min(92vw, 70rem);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content; /* cresce con il testo */
+  min-height: 1.1em;
+  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-size: clamp(2.2rem, 8vw, 6rem);
+  line-height: 1.1;
+  text-align: center;
+  color: #f0cf7a;
+  caret-color: #f0cf7a;
+}
+
+/* stanza finale con i pezzi in cromo (ChromoRoom), dopo il nome */
+.chromo-room {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: #000;
+}
+.chromo-room-view {
+  position: absolute;
+  inset: 0;
+}
+.chromo-room-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(1.2rem, 6vh, 3rem);
+  margin: 0;
+  text-align: center;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: clamp(0.75rem, 1.5vw, 0.95rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #e3b54a;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s ease;
+}
+.chromo-room-hint.is-on {
+  opacity: 0.8;
+}
+
+/* nel sito la freccia dorata prende il posto della lineetta sottile, che le passerebbe sopra */
+html:not(.is-cinematic) .scroll-cue {
+  display: none;
+}
+.scroll-hint-pulse {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  animation: hint-pulse 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(227, 181, 74, 0.55)) drop-shadow(0 0 28px rgba(227, 181, 74, 0.3));
+}
+.scroll-hint-arrow {
+  width: clamp(56px, 9vw, 88px);
+  height: auto;
+}
+.scroll-hint-label {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: clamp(0.85rem, 1.6vw, 1.1rem);
+  font-weight: 600;
+  letter-spacing: 0.45em;
+  margin-right: -0.45em; /* compensa lo spazio dopo l'ultima lettera */
+  text-transform: uppercase;
+}
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+@keyframes hint-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(8px) scale(1.08);
+    opacity: 1;
+  }
+}
+
 /* ── 2 · it's coming ──────────────────────────────────────── */
 /* 56% = superficie dell'acqua disegnata dallo sfondo (fx.surface) */
 .surface {
@@ -583,6 +740,9 @@
 @media (prefers-reduced-motion: reduce) {
   .tone-text,
   .scroll-cue-inner::after {
+    animation: none;
+  }
+  .scroll-hint-pulse {
     animation: none;
   }
   /* le tessere cambiano subito, senza aletta che gira */

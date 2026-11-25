@@ -14,6 +14,11 @@ import Fable from './scenes/Fable.jsx';
 import Scene3D from './three/Scene3D.jsx';
 import OrbText from './components/OrbText.jsx';
 import { buildTimeline, LENGTH } from './timeline.js';
+import { getCinematic, setCinematic } from './lib/flags.js';
+import { startAutoplay, lockInput } from './lib/autoplay.js';
+import SiteOnly from './components/SiteOnly.jsx';
+import ScrollHint from './components/ScrollHint.jsx';
+import NameEntry from './components/NameEntry.jsx';
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 // su mobile la barra degli indirizzi cambia l'altezza: evita ricalcoli e salti
@@ -60,6 +65,32 @@ export default function App() {
     });
     // i font cambiano le misure della data (punto d'ingresso dello zoom)
     document.fonts?.ready.then(() => ScrollTrigger.refresh());
+
+    // cinematica: parte sempre all'apertura, dopo l'entrata della pietra; finché dura l'utente non può interagire.
+    // Quando è tornata in cima cinematic = false e compare il sito (con i pezzi dentro <SiteOnly>).
+    if (!getCinematic()) return;
+    const unlock = lockInput();
+    const stone = stage.current.querySelector('.ready-stone');
+    let stop = () => {};
+    const go = () => {
+      clearTimeout(fallback);
+      stone?.removeEventListener('stoneready', go);
+      stop = startAutoplay({
+        delay: 2600, // tempo dell'entrata della pietra
+        onDone: () => {
+          unlock();
+          setCinematic(false);
+        }
+      });
+    };
+    const fallback = setTimeout(go, 5000);
+    stone?.addEventListener('stoneready', go, { once: true });
+    return () => {
+      clearTimeout(fallback);
+      stone?.removeEventListener('stoneready', go);
+      stop();
+      unlock();
+    };
   });
 
   return (
@@ -76,7 +107,19 @@ export default function App() {
         <Fable />
         <OrbText />
         <Scene3D />
+        {/* bagliore della TV che si spegne: si schiaccia insieme alla scena */}
+        <div className="tv-flash" aria-hidden="true" />
+        {/* fuori dalla cinematica: solo nel sito dopo */}
+        <SiteOnly>
+          <ScrollHint />
+        </SiteOnly>
       </main>
+      {/* punto luminoso finale della TV spenta (fuori dalla scena, che è già schiacciata a zero) */}
+      <div className="tv-dot" aria-hidden="true" />
+      {/* fuori dalla cinematica: solo nel sito, a schermo nero */}
+      <SiteOnly>
+        <NameEntry />
+      </SiteOnly>
       <div ref={track} className="track" style={{ height: `${100 + LENGTH * SCROLL_PER_UNIT}vh` }} />
     </>
   );

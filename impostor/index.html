@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Il gioco dell'Impostore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: festa tra amici, teatrale ma chiara, si passa il telefono di mano in mano
+   IDEA: un tavolo da gioco con carte coperte, ognuna col nome di un giocatore
+   PICTURE: la mano di carte stessa; nel menu una maschera stilizzata
+   COLOUR and TYPE: rosso sipario profondo, carte bianche, accento giallo limone; Archivo Black + Inter
+   LAYOUT: una colonna centrale, max 960px, schermate a passi: menu, carte, chi inizia */
+:root{color-scheme:light dark;
+ --bg:light-dark(#8e1326,#3a0610);--bg2:light-dark(#6f0c1c,#280409);
+ --ink:#fff;--soft:light-dark(#ffd9de,#e9b4bc);
+ --card:light-dark(#ffffff,#f4f1f2);--cardInk:#1d0a0e;
+ --acc:#ffd23f;--civ:#1e6bff;--imp:#e0132f;--giu:#ff9f1c;--spy:#0b8f88;--line:rgba(255,255,255,.18)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;min-height:100vh;color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip;
+ background:radial-gradient(120% 80% at 50% 0%,var(--bg) 0%,var(--bg2) 100%) fixed}
+h1,h2,h3{font-family:"Archivo Black",Impact,sans-serif;font-weight:400;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(34px,6vw,52px)}h2{font-size:clamp(24px,4vw,32px)}
+.wrap{max-width:960px;margin:0 auto;padding:clamp(20px,4vw,48px) max(4vw,16px) 64px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:24px;align-items:center;margin-bottom:28px}
+.hero p{color:var(--soft);margin:12px 0 0;max-width:52ch}
+.mask{width:100%;height:auto;filter:drop-shadow(0 18px 24px rgba(0,0,0,.35))}
+.panel{background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:18px;padding:clamp(16px,3vw,28px);margin-bottom:18px}
+.panel h3{font-size:18px;margin-bottom:14px}
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.role{background:var(--card);color:var(--cardInk);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 6px 0 rgba(0,0,0,.25)}
+.role b{font-family:"Archivo Black";font-weight:400;font-size:17px;display:flex;align-items:center;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.role small{color:#6b5357;font-size:13px;line-height:1.35}
+.step{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:auto}
+.step button{width:44px;height:44px;border-radius:12px;border:0;background:#f1e6e8;color:var(--cardInk);font-size:22px;font-weight:700;cursor:pointer}
+.step button:disabled{opacity:.35;cursor:default}
+.step output{font-family:"Archivo Black";font-size:28px;min-width:2ch;text-align:center}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+label.opt{display:flex;gap:10px;align-items:center;cursor:pointer;color:var(--soft)}
+label.opt input{width:20px;height:20px;accent-color:var(--acc)}
+select,input[type=text]{font:16px Inter,sans-serif;height:44px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:var(--cardInk);padding:0 12px}
+select{min-width:200px}
+.names{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.names label{display:flex;align-items:center;gap:8px}
+.names span{font-weight:700;color:var(--acc);width:2ch;text-align:right;flex:none}
+.names input{width:100%}
+.btn{height:52px;padding:0 26px;border-radius:14px;border:0;background:var(--acc);color:#2a0a10;font:18px "Archivo Black",sans-serif;cursor:pointer;box-shadow:0 5px 0 #b38900}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 #b38900}
+.btn.ghost{background:transparent;color:var(--ink);border:2px solid var(--line);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible{outline:3px solid var(--acc);outline-offset:3px}
+.err{color:var(--acc);font-weight:600;min-height:1.5em;margin:10px 0 0}
+.bar{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.bar p{margin:6px 0 0;color:var(--soft)}
+.meter{height:10px;border-radius:5px;background:rgba(0,0,0,.3);overflow:hidden;width:min(260px,100%)}
+.meter i{display:block;height:100%;background:var(--acc);transition:width .4s}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+.card{aspect-ratio:3/4;perspective:900px;cursor:pointer;border-radius:16px}
+.card .in{position:relative;width:100%;height:100%;transition:transform .55s cubic-bezier(.3,.7,.3,1);transform-style:preserve-3d}
+.card.open .in{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:16px;backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14px;gap:8px;box-shadow:0 8px 0 rgba(0,0,0,.28)}
+.back{background:var(--card);color:var(--cardInk);
+ background-image:repeating-linear-gradient(45deg,transparent 0 12px,rgba(142,19,38,.07) 12px 24px)}
+.back .who{font-family:"Archivo Black";font-size:20px;line-height:1.1;overflow-wrap:anywhere}
+.back small{color:#6b5357;font-size:13px}
+.back svg{width:54px;height:54px}
+.card.seen{cursor:default}
+.card.seen .back{background:rgba(255,255,255,.12);color:var(--soft);box-shadow:none;border:2px dashed var(--line)}
+.card.seen .back small{color:var(--soft)}
+.card.seen .back svg{opacity:.4}
+.card.locked:not(.seen){opacity:.5;cursor:default}
+.card.lifted{visibility:hidden}
+.card.next{position:relative;z-index:1;animation:nudge 1.4s ease-in-out infinite}
+.card.next .back{box-shadow:0 0 0 4px var(--acc),0 0 32px 6px rgba(255,210,63,.55),0 8px 0 rgba(0,0,0,.28)}
+.card.next .back small{background:var(--acc);color:#2a0a10;font-weight:700;border-radius:99px;padding:4px 12px}
+.card.next::before{content:"Tocca a te";position:absolute;top:-14px;left:50%;transform:translateX(-50%);z-index:2;background:var(--acc);color:#2a0a10;font:13px "Archivo Black",sans-serif;padding:4px 12px;border-radius:99px;white-space:nowrap;box-shadow:0 3px 0 #b38900}
+@keyframes nudge{50%{transform:translateY(-6px) scale(1.03)}}
+.turn{color:var(--acc);font-weight:700}
+.zoom{position:fixed;inset:0;z-index:20;background:rgba(25,0,6,0);transition:background .45s}
+.zoom.on{background:rgba(25,0,6,.78);backdrop-filter:blur(5px)}
+.zcard{position:fixed;perspective:1400px;transform-origin:0 0;border-radius:22px}
+.zcard.anim{transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.zcard .in{position:relative;width:100%;height:100%;transition:transform .6s cubic-bezier(.3,.7,.3,1);transform-style:preserve-3d}
+.zcard.open .in{transform:rotateY(180deg)}
+.zcard .face{border-radius:22px;padding:clamp(18px,5%,30px);gap:14px}
+.zcard .back .who{font-size:clamp(24px,7vw,34px)}.zcard .back svg{width:90px;height:90px}
+.zcard .front .tag{font-size:15px}.zcard .front .r{font-size:clamp(26px,7vw,36px)}
+.zcard .front .w{font-size:clamp(26px,8vw,40px);padding:14px;border-radius:14px}
+.zcard .front .goal{font-size:16px;line-height:1.4}
+.zcard .front button{height:52px;font-size:17px}
+.front{transform:rotateY(180deg);color:#fff}
+.front .tag{font-size:13px;font-weight:700;letter-spacing:.02em;opacity:.9}
+.front .r{font-family:"Archivo Black";font-size:22px}
+.front .w{background:#fff;color:var(--cardInk);border-radius:10px;padding:8px 10px;font-family:"Archivo Black";font-size:clamp(17px,2.6vw,22px);width:100%;overflow-wrap:anywhere}
+.front .goal{font-size:13px;line-height:1.3}
+.front button{margin-top:4px;height:44px;border-radius:10px;border:0;background:rgba(0,0,0,.3);color:#fff;font:700 15px Inter;padding:0 12px;cursor:pointer;width:100%}
+.f-civ{background:var(--civ)}.f-imp{background:var(--imp)}.f-giu{background:var(--giu);color:#2a0a10}
+.f-giu button{background:rgba(0,0,0,.18);color:#2a0a10}.f-spy{background:var(--spy)}
+.start{text-align:center;padding:12px 0 8px}
+.start .big{font-family:"Archivo Black";font-size:clamp(40px,9vw,80px);line-height:1;color:var(--acc);margin:14px 0;overflow-wrap:anywhere;animation:pop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
+ol.order{list-style:none;padding:0;margin:0;display:grid;gap:8px;counter-reset:o}
+ol.order li{counter-increment:o;display:flex;align-items:center;gap:14px;background:rgba(0,0,0,.22);border-radius:12px;padding:10px 14px;font-weight:600}
+ol.order li::before{content:counter(o);font-family:"Archivo Black";color:var(--acc);font-size:20px;width:1.6ch;text-align:right}
+ol.order li:first-child{background:var(--acc);color:#2a0a10}ol.order li:first-child::before{color:#2a0a10}
+.reveal{margin-top:12px}
+.reveal table{width:100%;border-collapse:collapse}
+.reveal td{padding:8px 6px;border-bottom:1px solid var(--line)}
+.reveal td:last-child{text-align:right;font-weight:700}
+.secret{font-family:"Archivo Black";font-size:28px;color:var(--acc)}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+.hide{display:none!important}
+@media(max-width:600px){.hero{grid-template-columns:1fr}.mask{max-width:150px;order:-1}.roles{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.btn{width:100%}}
+@media(prefers-reduced-motion:reduce){.card .in,.zcard .in,.zcard.anim,.zoom{transition:none}.start .big,.card.next{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- MENU -->
+<section id="menu">
+ <div class="hero">
+  <div>
+   <h1>Il gioco dell'Impostore</h1>
+   <p>Tutti ricevono la stessa parola, tranne gli impostori che devono scoprirla. A turno ognuno dice una parola collegata, senza farsi smascherare.</p>
+  </div>
+  <svg class="mask" viewBox="0 0 220 180" aria-hidden="true">
+   <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#ffd9de"/></linearGradient></defs>
+   <ellipse cx="110" cy="168" rx="80" ry="8" fill="rgba(0,0,0,.25)"/>
+   <path d="M20 40 Q110 0 200 40 Q205 120 110 160 Q15 120 20 40Z" fill="url(#g)"/>
+   <path d="M20 40 Q110 0 200 40 Q202 60 196 80 Q110 40 24 80 Q18 60 20 40Z" fill="#ffd23f"/>
+   <path d="M48 86 Q72 66 96 86 Q72 100 48 86Z" fill="#2a0a10"/>
+   <path d="M124 86 Q148 66 172 86 Q148 100 124 86Z" fill="#2a0a10"/>
+   <path d="M80 126 Q110 112 140 126" stroke="#2a0a10" stroke-width="6" fill="none" stroke-linecap="round"/>
+   <path d="M110 18 L110 4" stroke="#ffd23f" stroke-width="5" stroke-linecap="round"/>
+  </svg>
+ </div>
+
+ <div class="panel">
+  <h3>Ruoli</h3>
+  <div class="roles" id="roles"></div>
+ </div>
+
+ <div class="panel">
+  <h3>Parola</h3>
+  <div class="row">
+   <select id="cat" aria-label="Categoria"></select>
+   <label class="opt"><input type="checkbox" id="hint"> Mostra la categoria agli impostori</label>
+   <label class="opt"><input type="checkbox" id="spyBlind"> La spia crede di essere un civile</label>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h3>Giocatori</h3>
+  <div class="names" id="names"></div>
+ </div>
+
+ <button class="btn" id="go">Inizia la partita</button>
+ <p class="err" id="err"></p>
+</section>
+
+<!-- CARTE -->
+<section id="deal" class="hide">
+ <div class="bar">
+  <div>
+   <h2>Guarda la tua carta</h2>
+   <p id="dealInfo">Passa il telefono: ognuno tocca la carta col suo nome, legge e la richiude. Si può guardare una sola volta.</p>
+  </div>
+  <div><p id="count" style="margin:0 0 6px"></p><div class="meter"><i id="meter"></i></div></div>
+ </div>
+ <div class="grid" id="grid"></div>
+ <div class="actions">
+  <button class="btn" id="toStart" disabled>Chi inizia?</button>
+  <button class="btn ghost" id="abort">Torna al menu</button>
+ </div>
+</section>
+
+<!-- CHI INIZIA -->
+<section id="startS" class="hide">
+ <div class="start">
+  <h2>Inizia a parlare</h2>
+  <div class="big" id="first"></div>
+  <p style="color:var(--soft);margin:0 0 22px">Poi si prosegue in quest'ordine, sorteggiato a caso.</p>
+ </div>
+ <div class="panel"><h3>Ordine del turno</h3><ol class="order" id="order"></ol>
+  <div class="actions" style="margin-top:16px"><button class="btn ghost" id="reroll">Nuovo turno (rimescola l'ordine)</button></div>
+ </div>
+ <div class="panel">
+  <h3>Fine partita</h3>
+  <button class="btn ghost" id="showAll">Rivela parola e ruoli</button>
+  <div class="reveal hide" id="reveal"></div>
+ </div>
+ <div class="actions">
+  <button class="btn" id="again">Nuova partita, stessi giocatori</button>
+  <button class="btn ghost" id="back">Menu</button>
+ </div>
+</section>
+
+</div>
+<div class="zoom hide" id="zoom"><div class="zcard" id="zcard"><div class="in"><div class="face back" id="zback"></div><div class="face front" id="zfront"></div></div></div></div>
+<script>
+{
+const DB={
+ "Cibo":["Pizza","Lasagne","Tiramisù","Gelato","Risotto","Arancino","Cannolo","Panettone","Carbonara","Focaccia","Mozzarella","Piadina","Polenta","Sushi","Hamburger","Cornetto","Bruschetta","Parmigiano"],
+ "Animali":["Giraffa","Pinguino","Delfino","Elefante","Gufo","Canguro","Squalo","Farfalla","Coccodrillo","Koala","Polpo","Cavallo","Pappagallo","Riccio","Leone","Tartaruga","Ape","Lupo"],
+ "Luoghi":["Spiaggia","Ospedale","Aeroporto","Biblioteca","Stadio","Discoteca","Museo","Supermercato","Scuola","Palestra","Cinema","Stazione","Chiesa","Zoo","Montagna","Ristorante","Campeggio","Farmacia"],
+ "Oggetti":["Ombrello","Chitarra","Forbici","Specchio","Candela","Valigia","Orologio","Occhiali","Lavatrice","Bicicletta","Telecomando","Cuscino","Martello","Zaino","Frigorifero","Lampada","Chiave","Spazzolino"],
+ "Mestieri":["Pompiere","Dentista","Pilota","Cuoco","Idraulico","Astronauta","Postino","Parrucchiere","Insegnante","Giardiniere","Avvocato","Fotografo","Meccanico","Poliziotto","Panettiere","Infermiere","Architetto","Pescatore"],
+ "Sport e svago":["Calcio","Tennis","Sci","Nuoto","Pallavolo","Scacchi","Bowling","Surf","Boxe","Ciclismo","Golf","Karaoke","Pesca","Arrampicata","Yoga","Freccette","Biliardo","Basket"],
+ "Natura":["Vulcano","Arcobaleno","Cascata","Deserto","Ghiacciaio","Foresta","Tempesta","Isola","Grotta","Fulmine","Tramonto","Lago","Neve","Girasole","Cactus","Fiume","Luna","Conchiglia"]
+};
+// Database parallelo: parola dei civili -> parola simile data alla spia
+const SIMILI={
+ Pizza:"Calzone",Lasagne:"Cannelloni","Tiramisù":"Zuppa inglese",Gelato:"Granita",Risotto:"Paella",Arancino:"Supplì",Cannolo:"Sfogliatella",Panettone:"Pandoro",Carbonara:"Amatriciana",Focaccia:"Pizza bianca",Mozzarella:"Burrata",Piadina:"Tortilla",Polenta:"Purè",Sushi:"Sashimi",Hamburger:"Hot dog",Cornetto:"Brioche",Bruschetta:"Crostino",Parmigiano:"Pecorino",
+ Giraffa:"Zebra",Pinguino:"Foca",Delfino:"Balena",Elefante:"Rinoceronte",Gufo:"Civetta",Canguro:"Wallaby",Squalo:"Orca",Farfalla:"Falena",Coccodrillo:"Alligatore",Koala:"Panda",Polpo:"Calamaro",Cavallo:"Asino",Pappagallo:"Tucano",Riccio:"Porcospino",Leone:"Tigre",Tartaruga:"Lumaca",Ape:"Vespa",Lupo:"Volpe",
+ Spiaggia:"Lungomare",Ospedale:"Pronto soccorso",Aeroporto:"Porto",Biblioteca:"Libreria",Stadio:"Palazzetto",Discoteca:"Pub",Museo:"Galleria d'arte",Supermercato:"Mercato",Scuola:"Università",Palestra:"Piscina",Cinema:"Teatro",Stazione:"Metropolitana",Chiesa:"Cattedrale",Zoo:"Acquario",Montagna:"Collina",Ristorante:"Pizzeria",Campeggio:"Rifugio",Farmacia:"Erboristeria",
+ Ombrello:"Impermeabile",Chitarra:"Ukulele",Forbici:"Coltello",Specchio:"Finestra",Candela:"Torcia",Valigia:"Borsone",Orologio:"Sveglia",Occhiali:"Lenti a contatto",Lavatrice:"Lavastoviglie",Bicicletta:"Monopattino",Telecomando:"Joystick",Cuscino:"Materasso",Martello:"Cacciavite",Zaino:"Borsa",Frigorifero:"Congelatore",Lampada:"Lampadario",Chiave:"Lucchetto",Spazzolino:"Pettine",
+ Pompiere:"Soccorritore",Dentista:"Ortodontista",Pilota:"Hostess",Cuoco:"Pasticcere",Idraulico:"Elettricista",Astronauta:"Astronomo",Postino:"Corriere",Parrucchiere:"Barbiere",Insegnante:"Educatore",Giardiniere:"Contadino",Avvocato:"Giudice",Fotografo:"Regista",Meccanico:"Carrozziere",Poliziotto:"Carabiniere",Panettiere:"Pizzaiolo",Infermiere:"Medico",Architetto:"Ingegnere",Pescatore:"Marinaio",
+ Calcio:"Rugby",Tennis:"Padel",Sci:"Snowboard",Nuoto:"Pallanuoto",Pallavolo:"Beach volley",Scacchi:"Dama",Bowling:"Bocce",Surf:"Windsurf",Boxe:"Karate",Ciclismo:"Mountain bike",Golf:"Minigolf",Karaoke:"Concerto",Pesca:"Caccia",Arrampicata:"Trekking",Yoga:"Pilates",Freccette:"Tiro con l'arco",Biliardo:"Calcio balilla",Basket:"Pallamano",
+ Vulcano:"Geyser",Arcobaleno:"Aurora boreale",Cascata:"Torrente",Deserto:"Savana",Ghiacciaio:"Iceberg",Foresta:"Giungla",Tempesta:"Uragano",Isola:"Penisola",Grotta:"Miniera",Fulmine:"Tuono",Tramonto:"Alba",Lago:"Stagno",Neve:"Grandine",Girasole:"Margherita",Cactus:"Aloe",Fiume:"Canale",Luna:"Sole",Conchiglia:"Stella marina"
+};
+// Mix difficile: parole casuali senza tema, ognuna con la sua parola simile per la spia
+const MIX=("Nostalgia:Malinconia,Burocrazia:Scartoffie,Ipnosi:Trance,Eclissi:Plenilunio,Labirinto:Rompicapo,Clessidra:Cronometro,Bussola:Mappa,Faro:Lanterna,Mongolfiera:Dirigibile,Sottomarino:Batiscafo,"+
+"Ventriloquo:Burattinaio,Mimo:Clown,Equilibrista:Acrobata,Prestigiatore:Illusionista,Sonnambulo:Insonne,Fantasma:Zombie,Vampiro:Licantropo,Alchimista:Chimico,Oracolo:Indovino,Pirata:Corsaro,"+
+"Samurai:Ninja,Gladiatore:Cavaliere,Mummia:Scheletro,Piramide:Sfinge,Colosseo:Arena,Gondola:Canoa,Trampolino:Altalena,Ascensore:Scala mobile,Semaforo:Rotonda,Pedaggio:Dogana,"+
+"Passaporto:Carta d'identità,Testamento:Eredità,Matrimonio:Fidanzamento,Divorzio:Separazione,Funerale:Veglia,Battesimo:Cresima,Compleanno:Anniversario,Capodanno:Carnevale,Vendemmia:Raccolto,Transumanza:Pascolo,"+
+"Alveare:Formicaio,Ragnatela:Rete,Bozzolo:Crisalide,Fossile:Ambra,Meteorite:Asteroide,Buco nero:Supernova,Gravità:Magnetismo,Eco:Riverbero,Miraggio:Allucinazione,Déjà vu:Premonizione,"+
+"Insonnia:Incubo,Sbadiglio:Starnuto,Singhiozzo:Tosse,Solletico:Prurito,Vertigine:Nausea,Gelosia:Invidia,Imbarazzo:Vergogna,Rimorso:Rimpianto,Pigrizia:Noia,Coraggio:Audacia,"+
+"Superstizione:Scaramanzia,Pettegolezzo:Diceria,Bugia:Esagerazione,Promessa:Giuramento,Segreto:Mistero,Indovinello:Barzelletta,Sarcasmo:Ironia,Applauso:Ovazione,Sciopero:Protesta,Elezioni:Referendum,"+
+"Tassa:Multa,Mutuo:Prestito,Asta:Svendita,Lotteria:Gratta e vinci,Scommessa:Sfida,Bancarotta:Crisi,Inflazione:Recessione,Pensione:Vacanza,Trasloco:Ristrutturazione,Condominio:Villetta,"+
+"Soffitta:Cantina,Camino:Stufa,Termosifone:Condizionatore,Persiana:Tenda,Zerbino:Tappeto,Appendiabiti:Gruccia,Cavatappi:Apribottiglie,Mattarello:Frusta,Grattugia:Mandolina,Colapasta:Setaccio,"+
+"Bilancia:Metro,Termometro:Barometro,Stetoscopio:Siringa,Microscopio:Telescopio,Calamita:Molla,Fisarmonica:Organetto,Arpa:Lira,Tamburo:Bongo,Metronomo:Diapason,Pentagramma:Spartito,"+
+"Coriandoli:Stelle filanti,Aquilone:Girandola,Boomerang:Frisbee,Yo-yo:Trottola,Domino:Mikado,Puzzle:Cruciverba,Sudoku:Rebus,Tatuaggio:Piercing,Parrucca:Toupet,Monocolo:Binocolo,"+
+"Bretelle:Cintura,Ventaglio:Ventilatore,Vestaglia:Accappatoio,Pantofole:Ciabatte,Sombrero:Cappello da cowboy,Armatura:Scudo,Catapulta:Cannone,Ponte levatoio:Saracinesca,Trono:Corona,Scettro:Bacchetta magica,"+
+"Tesoro:Bottino,Iceberg:Banchisa,Arcipelago:Atollo,Fiordo:Baia,Palude:Acquitrino,Duna:Oasi,Valanga:Frana,Terremoto:Maremoto,Tornado:Ciclone,Nebbia:Foschia,"+
+"Rugiada:Brina,Muschio:Lichene,Fungo:Tartufo,Edera:Glicine,Bonsai:Cactus,Ninfea:Loto,Camaleonte:Geco,Pavone:Fenicottero,Pipistrello:Gufo,Medusa:Anemone di mare,"+
+"Ornitorinco:Castoro,Bradipo:Koala,Formichiere:Armadillo,Scarabeo:Coccinella,Lucciola:Zanzara,Cammello:Dromedario,Lama:Alpaca,Struzzo:Emù,Avvoltoio:Corvo,Sanguisuga:Zecca,"+
+"Plancton:Krill,Wi-Fi:Bluetooth,Password:PIN,Podcast:Radio,Selfie:Ritratto,Emoji:Adesivo,Spoiler:Trailer,Algoritmo:Ricetta,Robot:Androide,Ologramma:Proiezione,"+
+"Drone:Elicottero,Satellite:Stazione spaziale,Codice a barre:QR code,Antivirus:Firewall,Influencer:Youtuber,Paparazzo:Giornalista,Sosia:Gemello,Maggiordomo:Cameriere,Sommelier:Barista,Notaio:Commercialista,"+
+"Spazzacamino:Lattoniere,Ostetrica:Pediatra,Orafo:Orologiaio,Bagnino:Guardiacoste,Giocoliere:Saltimbanco,Esorcista:Medium,Ipocondriaco:Paranoico,Autostop:Carpooling,Jet lag:Mal d'auto,Quarantena:Isolamento,"+
+"Sauna:Bagno turco,Ventosa:Sturalavandini,Pinzette:Tenaglie,Clacson:Sirena,Paracadute:Deltaplano,Trapezio:Liana,Altoparlante:Megafono,Fotocopia:Scansione,Timbro:Firma,Graffetta:Puntina,"+
+"Mappamondo:Atlante,Cartolina:Lettera,Francobollo:Busta,Diario:Agenda,Autografo:Dedica,Medaglia:Trofeo,Podio:Palco,Fischietto:Campanello,Cartellino rosso:Squalifica,Rigore:Punizione").split(",").map(s=>s.split(":"));
+const THEMES=Object.keys(DB);
+DB["Mix difficile"]=MIX.map(x=>x[0]);for(const [a,b] of MIX)SIMILI[a]=b;
+const ROLES={
+ civ:{name:"Civili",one:"Civile",color:"var(--civ)",desc:"Ricevono la parola. Devono smascherare gli impostori.",min:1},
+ imp:{name:"Impostori",one:"Impostore",color:"var(--imp)",desc:"Non ricevono la parola. Devono indovinarla senza farsi scoprire.",min:1},
+ giu:{name:"Giullari",one:"Giullare",color:"var(--giu)",desc:"Ricevono la parola. Vincono se vengono scambiati per impostori.",min:0},
+ spy:{name:"Spie",one:"Spia",color:"var(--spy)",desc:"Ricevono una parola simile ma diversa. Devono capire quella vera e confondersi.",min:0}
+};
+const GOAL={civ:"Descrivi la parola senza renderla troppo facile.",imp:"Ascolta gli altri e indovina la parola. Non farti scoprire!",giu:"Conosci la parola, ma comportati in modo sospetto: fatti votare come impostore.",spy:"La tua parola è simile a quella dei civili, non uguale. Capisci la loro e mimetizzati."};
+const MASK='<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M6 14Q32 2 58 14Q60 38 32 58Q4 38 6 14Z" fill="#8e1326"/><path d="M14 28Q21 22 28 28Q21 32 14 28ZM36 28Q43 22 50 28Q43 32 36 28Z" fill="#fff"/></svg>';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+let cfg={civ:3,imp:1,giu:0,spy:0,cat:"Casuale",hint:false,spyBlind:false,names:[]};
+try{const s=JSON.parse(localStorage.getItem("impostore-cfg")||"null");if(s)cfg={...cfg,...s}}catch(e){}
+const save=()=>{try{localStorage.setItem("impostore-cfg",JSON.stringify(cfg))}catch(e){}};
+const total=()=>cfg.civ+cfg.imp+cfg.giu+cfg.spy;
+const reduced=()=>matchMedia("(prefers-reduced-motion:reduce)").matches;
+const wait=ms=>new Promise(r=>setTimeout(r,reduced()?0:ms));
+let game=null,used=[];
+
+function renderRoles(){
+ $("roles").innerHTML=Object.entries(ROLES).map(([k,r])=>`<div class="role"><b><span class="dot" style="background:${r.color}"></span>${r.name}</b><small>${r.desc}</small>
+ <div class="step"><button data-k="${k}" data-d="-1" aria-label="Meno ${r.name}" ${cfg[k]<=r.min?"disabled":""}>−</button><output>${cfg[k]}</output><button data-k="${k}" data-d="1" aria-label="Più ${r.name}" ${total()>=20?"disabled":""}>+</button></div></div>`).join("");
+}
+function renderNames(){
+ const n=total();
+ while(cfg.names.length<n)cfg.names.push("");
+ $("names").innerHTML=Array.from({length:n},(_,i)=>`<label><span>${i+1}</span><input type="text" maxlength="18" data-i="${i}" placeholder="Giocatore ${i+1}" value="${esc(cfg.names[i]||"")}" aria-label="Nickname giocatore ${i+1}"></label>`).join("");
+}
+function renderMenu(){
+ renderRoles();renderNames();
+ $("cat").innerHTML=["Casuale","Mix difficile",...THEMES].map(c=>`<option ${c===cfg.cat?"selected":""}>${c}</option>`).join("");
+ $("hint").checked=cfg.hint;$("spyBlind").checked=cfg.spyBlind;$("err").textContent="";
+}
+$("roles").addEventListener("click",e=>{
+ const b=e.target.closest("button[data-k]");if(!b)return;
+ const k=b.dataset.k,d=+b.dataset.d;
+ if(d>0&&total()>=20)return;
+ cfg[k]=Math.max(ROLES[k].min,cfg[k]+d);save();renderRoles();renderNames();
+});
+$("names").addEventListener("input",e=>{if(e.target.dataset.i){cfg.names[+e.target.dataset.i]=e.target.value;save()}});
+$("cat").addEventListener("change",e=>{cfg.cat=e.target.value;save()});
+$("hint").addEventListener("change",e=>{cfg.hint=e.target.checked;save()});
+$("spyBlind").addEventListener("change",e=>{cfg.spyBlind=e.target.checked;save()});
+
+function show(id){for(const s of ["menu","deal","startS"])$(s).classList.toggle("hide",s!==id);window.scrollTo(0,0)}
+
+function newGame(){
+ const n=total();
+ if(n<3){$("err").textContent="Servono almeno 3 giocatori.";return}
+ if(cfg.imp>=n-cfg.imp){$("err").textContent="Gli impostori devono essere meno degli altri giocatori.";return}
+ const names=Array.from({length:n},(_,i)=>(cfg.names[i]||"").trim()||`Giocatore ${i+1}`);
+ const dup=names.find((x,i)=>names.indexOf(x)!==i);
+ if(dup){$("err").textContent=`Il nickname "${dup}" è usato due volte.`;return}
+ const cat=cfg.cat==="Casuale"?pick(THEMES):cfg.cat;
+ let pool=DB[cat].filter(w=>!used.includes(w)&&SIMILI[w]);if(!pool.length)pool=DB[cat];
+ const word=pick(pool);used=[...used.slice(-30),word];
+ const roles=shuffle([...Array(cfg.civ).fill("civ"),...Array(cfg.imp).fill("imp"),...Array(cfg.giu).fill("giu"),...Array(cfg.spy).fill("spy")]);
+ game={cat,word,spyWord:SIMILI[word]||word,players:names.map((name,i)=>({name,role:roles[i],seen:false})),open:-1,busy:false,order:[]};
+ renderDeal();show("deal");
+}
+const nextIdx=()=>game.players.findIndex(x=>!x.seen);
+function frontHTML(x){
+ if(x.role==="imp")return `<span class="tag">LA TUA PAROLA</span><div class="w">???</div><div class="r">Impostore</div><div class="goal">${GOAL.imp}${cfg.hint&&game.cat!=="Mix difficile"?`<br><b>Categoria: ${esc(game.cat)}</b>`:""}</div>`;
+ if(x.role==="spy"&&cfg.spyBlind)return `<span class="tag">LA TUA PAROLA</span><div class="w">${esc(game.spyWord)}</div><div class="r">Civile</div><div class="goal">${GOAL.civ}</div>`;
+ const w=x.role==="spy"?game.spyWord:game.word;
+ return `<span class="tag">LA TUA PAROLA</span><div class="w">${esc(w)}</div><div class="r">${ROLES[x.role].one}</div><div class="goal">${GOAL[x.role]}</div>`;
+}
+function renderDeal(){
+ const p=game.players,seen=p.filter(x=>x.seen).length,nx=nextIdx();
+ $("grid").innerHTML=p.map((x,i)=>{
+  const isNext=i===nx&&game.open<0,lifted=game.open===i,locked=!x.seen&&i!==nx;
+  return `<div class="card ${x.seen?"seen":""} ${isNext?"next":""} ${locked?"locked":""} ${lifted?"lifted":""}" data-i="${i}" tabindex="${isNext?0:-1}" role="button" aria-label="Carta di ${esc(x.name)}${x.seen?", già vista":isNext?", tocca a te":", in attesa"}">
+   <div class="in"><div class="face back">${MASK}<div class="who">${esc(x.name)}</div><small>${x.seen?"Già vista":isNext?"Tocca per guardare":"In attesa"}</small></div></div></div>`;
+ }).join("");
+ $("count").textContent=`${seen} di ${p.length} hanno visto`;
+ $("meter").style.width=(seen/p.length*100)+"%";
+ $("toStart").disabled=seen<p.length;
+ $("dealInfo").innerHTML=nx>=0
+  ?`Tocca a <span class="turn">${esc(p[nx].name)}</span>: prendi il telefono, tocca la carta evidenziata, leggi e richiudila. Si guarda una sola volta.`
+  :`Tutti hanno visto la propria carta. Scoprite chi inizia!`;
+ if(nx>=0&&game.open<0){const c=$("grid").querySelector(`.card[data-i="${nx}"]`);c&&c.scrollIntoView({block:"nearest",behavior:reduced()?"auto":"smooth"})}
+}
+// FLIP: la carta grande parte dalla posizione della carta nella griglia e si allarga al centro
+function targetBox(){
+ const w=Math.min(innerWidth*.86,innerHeight*.82*3/4,400),h=w*4/3;
+ return {w,h,l:(innerWidth-w)/2,t:(innerHeight-h)/2};
+}
+function placeAt(z,r,b){z.style.transform=`translate(${r.left-b.l}px,${r.top-b.t}px) scale(${r.width/b.w})`}
+async function flip(i){
+ const x=game.players[i];
+ if(game.busy||x.seen||i!==nextIdx())return;
+ game.busy=true;
+ const card=$("grid").querySelector(`.card[data-i="${i}"]`),r=card.getBoundingClientRect();
+ const z=$("zcard"),b=targetBox();
+ $("zback").innerHTML=card.querySelector(".back").innerHTML;
+ $("zback").querySelector("small").textContent="";
+ $("zfront").className="face front f-"+x.role;
+ $("zfront").innerHTML=frontHTML(x)+`<button id="zclose">Ho visto, nascondi</button>`;
+ Object.assign(z.style,{left:b.l+"px",top:b.t+"px",width:b.w+"px",height:b.h+"px"});
+ z.classList.remove("anim","open");placeAt(z,r,b);
+ $("zoom").classList.remove("hide");
+ game.open=i;card.classList.add("lifted");card.classList.remove("next");
+ void z.offsetWidth;
+ z.classList.add("anim");$("zoom").classList.add("on");z.style.transform="none";
+ await wait(460);
+ z.classList.add("open");
+ await wait(600);
+ $("zclose").focus();
+ game.busy=false;
+}
+async function closeCard(){
+ if(game.busy||game.open<0)return;
+ game.busy=true;
+ const i=game.open,z=$("zcard");
+ z.classList.remove("open");
+ await wait(620);
+ const card=$("grid").querySelector(`.card[data-i="${i}"]`);
+ placeAt(z,card.getBoundingClientRect(),targetBox());
+ $("zoom").classList.remove("on");
+ await wait(460);
+ $("zoom").classList.add("hide");$("zfront").innerHTML="";
+ game.players[i].seen=true;game.open=-1;game.busy=false;
+ renderDeal();
+ const nc=$("grid").querySelector(".card.next");nc&&nc.focus({preventScroll:true});
+}
+$("grid").addEventListener("click",e=>{const c=e.target.closest(".card");if(c)flip(+c.dataset.i)});
+$("grid").addEventListener("keydown",e=>{const c=e.target.closest(".card");if(c&&(e.key==="Enter"||e.key===" ")&&e.target===c){e.preventDefault();flip(+c.dataset.i)}});
+$("zoom").addEventListener("click",e=>{if(e.target.id==="zclose")closeCard()});
+
+function renderStart(){
+ game.order=shuffle(game.players.map(p=>p.name));
+ $("first").textContent=game.order[0];
+ $("first").style.animation="none";void $("first").offsetWidth;$("first").style.animation="";
+ $("order").innerHTML=game.order.map(n=>`<li>${esc(n)}</li>`).join("");
+}
+$("toStart").addEventListener("click",()=>{renderStart();$("reveal").classList.add("hide");$("showAll").classList.remove("hide");show("startS")});
+$("reroll").addEventListener("click",renderStart);
+$("showAll").addEventListener("click",()=>{
+ $("reveal").innerHTML=`<p style="margin:0 0 4px;color:var(--soft)">La parola era <span style="font-size:13px">(${esc(game.cat)})</span></p><div class="secret">${esc(game.word)}</div>
+ <table>${game.players.map(p=>`<tr><td>${esc(p.name)}</td><td style="color:${{civ:'#9cc1ff',imp:'#ff8a9a',giu:'var(--giu)',spy:'#5ee0d6'}[p.role]}">${ROLES[p.role].one}${p.role==="spy"?" ("+esc(game.spyWord)+")":""}</td></tr>`).join("")}</table>`;
+ $("reveal").classList.remove("hide");$("showAll").classList.add("hide");
+});
+$("go").addEventListener("click",newGame);
+$("again").addEventListener("click",newGame);
+$("back").addEventListener("click",()=>{renderMenu();show("menu")});
+$("abort").addEventListener("click",()=>{renderMenu();show("menu")});
+renderMenu();
+}
+</script>
+</body>
+</html>

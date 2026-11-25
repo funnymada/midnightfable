@@ -5,8 +5,9 @@ import { PALETTES, cssVars, toneKeys } from './lib/palettes.js';
 // Pause: nei punti in cui una scritta è appena formata la sequenza si ferma per `hold` unità di scroll.
 // I tempi qui sotto restano quelli della sequenza compatta: tutto ciò che viene dopo una pausa slitta in avanti.
 const HOLDS = [
-  { at: 4.5, hold: 3.2 }, // are you ready?
-  { at: 4.55, hold: 4.4 }, // la pietra si sgretola con calma prima che arrivi l'onda
+  // read = secondi di cinematica per unità di pausa (predefinito in lib/autoplay.js): sulla prima frase si legge un po' più svelti
+  { at: 4.5, hold: 3.2, read: 0.55 }, // are you ready?
+  { at: 4.55, hold: 4.4, read: 0.55 }, // la pietra si sgretola con calma prima che arrivi l'onda
   { at: 10.95, hold: 4.4 }, // it's coming: entrano il mulino e il sole di cartone
   { at: 13.55, hold: 3.6 }, // coordinate giganti
   { at: 21.5, hold: 2.4 }, // la data ferma su 30/01/2027
@@ -18,7 +19,9 @@ const TILT_75 = (75 * Math.PI) / 180;
 const remap = t => HOLDS.reduce((acc, h) => (t >= h.at - 1e-6 ? acc + h.hold : acc), t);
 
 // Durata della sequenza in unità di timeline: lo scroll la percorre tutta
-export const LENGTH = remap(36);
+export const LENGTH = remap(38); // 36 = fine della frase, poi la TV che si spegne
+// Le pause nella timeline finale (unità già spostate): servono allo scroll automatico per fermarsi sul testo
+export const HOLD_SPANS = HOLDS.map(h => ({ start: remap(h.at) - h.hold, end: remap(h.at), read: h.read }));
 
 // Lo sfondo (DitherBg) legge `fx`: qui si animano i suoi valori insieme agli elementi di testo
 export function buildTimeline(stage) {
@@ -160,6 +163,15 @@ export function buildTimeline(stage) {
   tl.to(q('.s-fable'), { autoAlpha: 1, duration: 0.3 }, 29);
   tl.to(fx, { type: 1, duration: 4.8 }, 29.2);
   tl.to(q('.caret'), { autoAlpha: 0, duration: 0.4 }, 35.2);
+
+  // ultima cosa: la TV si spegne. Tutto si schiaccia in una riga luminosa (dall'alto e dal basso verso il centro),
+  // la riga si stringe dai lati fino a un punto, il punto si spegne e resta il nero
+  tl.fromTo(stage, { scaleY: 1, scaleX: 1 }, { scaleY: 0.005, duration: 0.7, ease: 'power3.in', immediateRender: false }, 36);
+  tl.fromTo(q('.tv-flash'), { opacity: 0 }, { opacity: 0.85, duration: 0.7, ease: 'power2.in', immediateRender: false }, 36);
+  tl.to(stage, { scaleX: 0, duration: 0.5, ease: 'power3.in' }, 36.7);
+  tl.fromTo('.tv-dot', { autoAlpha: 0, scale: 1 }, { autoAlpha: 1, duration: 0.12, immediateRender: false }, 37.08);
+  tl.to('.tv-dot', { autoAlpha: 0, scale: 0.15, duration: 0.5, ease: 'power2.in' }, 37.2);
+  tl.fromTo(fx, { tv: 0 }, { tv: 1, duration: 1.8, immediateRender: false }, 36);
 
   raw.set({}, {}, LENGTH);
   return raw;

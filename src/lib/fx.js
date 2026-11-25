@@ -48,7 +48,8 @@ const INITIAL = {
   puff: 0, // sbuffi che aprono il fumo finale: 0 nessuno, 1 allargati su tutto lo schermo
   puffAlpha: 1,
   fog: 0, // nebbia di fumo su tutta la pagina prima della frase finale (three.js)
-  type: 0 // typewriter 0–1
+  type: 0, // typewriter 0–1
+  tv: 0 // TV che si spegne in fondo: 1 = schermo nero
 };
 
 // tempo dello sfondo: CrystalWave lo usa per seguire esattamente il bordo dell'acqua
